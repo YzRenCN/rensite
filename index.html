@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -14,66 +15,99 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f9fafb;
+            color: #374151;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        p {
+            font-size: 1rem;
+            color: #6b7280;
         }
     </style>
 </head>
 <body>
-    <div>正在根据您的地区跳转，请稍候...</div>
+    <div class="container">
+        <div class="spinner"></div>
+        <p>正在识别您的地区并跳转，请稍候...</p>
+    </div>
 
     <script>
-        // 使用ip-api.com免费IP定位接口，支持JSONP跨域
         function getLocationAndRedirect() {
-            // 创建script标签实现JSONP
+            // 定义目标地址
+            const domesticUrl = 'https://www.rensite.cn/home.html';
+            const internationalUrl = 'https://human.rensite.cn/';
+
+            // 创建 JSONP 脚本标签
             const script = document.createElement('script');
             
-            // 回调函数处理定位结果
+            // 定义全局回调函数
             window.handleIPResponse = function(data) {
-                if (data.status === 'success') {
-                    // 判断是否为中国大陆（国家代码CN，且排除港澳台）
-                    // 国家代码CN表示中国，进一步判断地区是否为大陆省份
+                if (data && data.status === 'success') {
                     const country = data.countryCode;
                     const region = data.regionName;
                     
-                    // 港澳台地区列表
-                    const hk_mo_tw = ['Hong Kong', 'Macau', 'Taiwan'];
+                    // 需要排除的港澳台地区名称（根据 API 返回可能为英文或拼音）
+                    const excludedRegions = ['Hong Kong', 'Macau', 'Taiwan', 'Xianggang', 'Aomen'];
                     
-                    if (country === 'CN' && !hk_mo_tw.includes(region)) {
-                        // 中国大陆IP，跳转到国内站点
-                        window.location.href = 'https://www.rensite.cn/home.html';
+                    // 判断逻辑：国家代码为 CN 且 地区不在排除列表中
+                    if (country === 'CN' && !excludedRegions.includes(region)) {
+                        window.location.href = domesticUrl;
                     } else {
-                        // 非中国大陆IP，跳转到国际站点
-                        window.location.href = 'https://human.rensite.cn/';
+                        // 其他国家或港澳台地区
+                        window.location.href = internationalUrl;
                     }
                 } else {
-                    // 定位失败时默认跳转国内站点，可根据需求修改
-                    window.location.href = 'https://www.rensite.cn/home.html';
+                    // API 返回失败，默认跳转国内
+                    window.location.href = domesticUrl;
                 }
             };
             
-            // 设置超时处理，3秒无响应则默认跳转
+            // 设置超时保护，防止 API 无响应导致页面卡死
             const timeout = setTimeout(function() {
-                window.location.href = 'https://www.rensite.cn/home.html';
+                console.warn('IP定位超时，执行默认跳转');
+                window.location.href = domesticUrl;
             }, 3000);
             
-            // 调用IP定位API，使用JSONP格式
-            script.src = 'http://ip-api.com/json/?lang=zh-CN&fields=status,countryCode,regionName&callback=handleIPResponse';
-            document.head.appendChild(script);
+            // 【关键修复】使用 HTTPS 协议，避免在 HTTPS 环境下被浏览器拦截
+            script.src = 'https://ip-api.com/json/?fields=status,countryCode,regionName&callback=handleIPResponse';
             
-            // 脚本加载完成后清除超时
+            // 加载成功清除超时
             script.onload = function() {
                 clearTimeout(timeout);
             };
             
-            // 脚本加载失败时默认跳转
+            // 加载失败（如网络错误）执行默认跳转
             script.onerror = function() {
                 clearTimeout(timeout);
-                window.location.href = 'https://www.rensite.cn/home.html';
+                console.error('IP定位脚本加载失败');
+                window.location.href = domesticUrl;
             };
+
+            document.head.appendChild(script);
         }
 
-        // 页面加载完成后执行
+        // DOM 加载完成后立即执行
         document.addEventListener('DOMContentLoaded', getLocationAndRedirect);
     </script>
 </body>
-</html><!--09548494072395614730091221-->
+</html>

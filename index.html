@@ -4,110 +4,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>页面跳转中</title>
+    <title>智能地区跳转</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-        }
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #f9fafb;
-            color: #374151;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
         }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #e5e7eb;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem auto;
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        p {
-            font-size: 1rem;
-            color: #6b7280;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="spinner"></div>
-        <p>正在识别您的地区并跳转，请稍候...</p>
+<body class="flex items-center justify-center p-4">
+
+    <div class="glass-panel w-full max-w-md rounded-2xl shadow-xl p-8 fade-in relative">
+        <!-- 设置按钮 -->
+        <button id="settingsBtn" class="absolute top-4 right-4 text-gray-400 hover:text-blue-600 transition-colors">
+            <i class="fas fa-cog text-xl"></i>
+        </button>
+
+        <!-- 主内容区 -->
+        <div id="mainContent" class="text-center">
+            <div class="mb-6">
+                <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">正在识别地区</h2>
+            <p class="text-gray-500 mb-6" id="statusText">正在连接定位服务...</p>
+            
+            <div class="bg-blue-50 rounded-lg p-4 text-left text-sm text-blue-800">
+                <p><i class="fas fa-info-circle mr-2"></i>系统将根据您的IP地址自动选择最佳站点。</p>
+            </div>
+        </div>
+
+        <!-- 设置面板 (默认隐藏) -->
+        <div id="settingsPanel" class="hidden absolute inset-0 bg-white rounded-2xl z-10 flex flex-col justify-center p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-sliders-h mr-2 text-blue-600"></i> 容错策略设置
+            </h3>
+            <p class="text-sm text-gray-500 mb-6">当定位失败或超时时，您希望如何处理？</p>
+            
+            <div class="space-y-3">
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                    <input type="radio" name="fallbackStrategy" value="domestic" class="w-4 h-4 text-blue-600" checked>
+                    <span class="ml-3 text-gray-700">默认跳转国内站点</span>
+                </label>
+                
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                    <input type="radio" name="fallbackStrategy" value="international" class="w-4 h-4 text-blue-600">
+                    <span class="ml-3 text-gray-700">默认跳转国际站点</span>
+                </label>
+                
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                    <input type="radio" name="fallbackStrategy" value="stay" class="w-4 h-4 text-blue-600">
+                    <span class="ml-3 text-gray-700">停留在当前页并提示</span>
+                </label>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+                <button id="saveSettings" class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    保存并继续
+                </button>
+                <button id="cancelSettings" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                    取消
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
-        function getLocationAndRedirect() {
-            // 定义目标地址
-            const domesticUrl = 'https://www.rensite.cn/home.html';
-            const internationalUrl = 'https://human.rensite.cn/';
+        // 配置项
+        const CONFIG = {
+            domesticUrl: 'https://www.rensite.cn/home.html',
+            internationalUrl: 'https://human.rensite.cn/',
+            timeout: 3000
+        };
 
-            // 创建 JSONP 脚本标签
+        // 状态管理
+        let fallbackStrategy = localStorage.getItem('fallbackStrategy') || 'domestic';
+        let isRedirecting = false;
+
+        // DOM 元素
+        const statusText = document.getElementById('statusText');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const saveSettingsBtn = document.getElementById('saveSettings');
+        const cancelSettingsBtn = document.getElementById('cancelSettings');
+        const radioButtons = document.getElementsByName('fallbackStrategy');
+
+        // 初始化设置面板状态
+        function initSettings() {
+            for (const radio of radioButtons) {
+                if (radio.value === fallbackStrategy) {
+                    radio.checked = true;
+                }
+            }
+        }
+
+        // 执行跳转
+        function performRedirect(url) {
+            if (isRedirecting) return;
+            isRedirecting = true;
+            statusText.textContent = "正在跳转...";
+            window.location.href = url;
+        }
+
+        // 处理定位结果
+        function handleLocationSuccess(data) {
+            if (isRedirecting) return;
+
+            if (data && data.status === 'success') {
+                const country = data.countryCode;
+                const region = data.regionName;
+                const excludedRegions = ['Hong Kong', 'Macau', 'Taiwan', 'Xianggang', 'Aomen'];
+
+                statusText.textContent = `识别完成: ${country} - ${region}`;
+
+                if (country === 'CN' && !excludedRegions.includes(region)) {
+                    setTimeout(() => performRedirect(CONFIG.domesticUrl), 500);
+                } else {
+                    setTimeout(() => performRedirect(CONFIG.internationalUrl), 500);
+                }
+            } else {
+                handleFallback();
+            }
+        }
+
+        // 处理容错逻辑
+        function handleFallback() {
+            if (isRedirecting) return;
+            statusText.textContent = "定位服务异常，执行容错策略";
+            
+            switch (fallbackStrategy) {
+                case 'domestic':
+                    setTimeout(() => performRedirect(CONFIG.domesticUrl), 1000);
+                    break;
+                case 'international':
+                    setTimeout(() => performRedirect(CONFIG.internationalUrl), 1000);
+                    break;
+                case 'stay':
+                    statusText.textContent = "无法确定您的地区，请手动选择站点。";
+                    statusText.classList.add('text-red-500');
+                    // 这里可以扩展显示手动选择按钮
+                    break;
+            }
+        }
+
+        // 启动定位逻辑
+        function startLocationCheck() {
             const script = document.createElement('script');
             
-            // 定义全局回调函数
-            window.handleIPResponse = function(data) {
-                if (data && data.status === 'success') {
-                    const country = data.countryCode;
-                    const region = data.regionName;
-                    
-                    // 需要排除的港澳台地区名称（根据 API 返回可能为英文或拼音）
-                    const excludedRegions = ['Hong Kong', 'Macau', 'Taiwan', 'Xianggang', 'Aomen'];
-                    
-                    // 判断逻辑：国家代码为 CN 且 地区不在排除列表中
-                    if (country === 'CN' && !excludedRegions.includes(region)) {
-                        window.location.href = domesticUrl;
-                    } else {
-                        // 其他国家或港澳台地区
-                        window.location.href = internationalUrl;
-                    }
-                } else {
-                    // API 返回失败，默认跳转国内
-                    window.location.href = domesticUrl;
-                }
-            };
+            window.handleIPResponse = handleLocationSuccess;
             
-            // 设置超时保护，防止 API 无响应导致页面卡死
-            const timeout = setTimeout(function() {
-                console.warn('IP定位超时，执行默认跳转');
-                window.location.href = domesticUrl;
-            }, 3000);
+            const timeoutId = setTimeout(() => {
+                script.remove();
+                handleFallback();
+            }, CONFIG.timeout);
+
+            script.src = `https://ip-api.com/json/?fields=status,countryCode,regionName&callback=handleIPResponse`;
             
-            // 【关键修复】使用 HTTPS 协议，避免在 HTTPS 环境下被浏览器拦截
-            script.src = 'https://ip-api.com/json/?fields=status,countryCode,regionName&callback=handleIPResponse';
-            
-            // 加载成功清除超时
-            script.onload = function() {
-                clearTimeout(timeout);
-            };
-            
-            // 加载失败（如网络错误）执行默认跳转
-            script.onerror = function() {
-                clearTimeout(timeout);
-                console.error('IP定位脚本加载失败');
-                window.location.href = domesticUrl;
+            script.onload = () => clearTimeout(timeoutId);
+            script.onerror = () => {
+                clearTimeout(timeoutId);
+                handleFallback();
             };
 
             document.head.appendChild(script);
         }
 
-        // DOM 加载完成后立即执行
-        document.addEventListener('DOMContentLoaded', getLocationAndRedirect);
+        // 事件监听
+        settingsBtn.addEventListener('click', () => {
+            initSettings();
+            settingsPanel.classList.remove('hidden');
+        });
+
+        cancelSettingsBtn.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden');
+        });
+
+        saveSettingsBtn.addEventListener('click', () => {
+            for (const radio of radioButtons) {
+                if (radio.checked) {
+                    fallbackStrategy = radio.value;
+                    localStorage.setItem('fallbackStrategy', fallbackStrategy);
+                    break;
+                }
+            }
+            settingsPanel.classList.add('hidden');
+            // 如果之前已经超时且停留在页面，重新触发一次检查或立即执行策略
+            if (!isRedirecting && statusText.textContent.includes("异常")) {
+                handleFallback();
+            }
+        });
+
+        // 页面加载完成后启动
+        document.addEventListener('DOMContentLoaded', startLocationCheck);
     </script>
 </body>
 </html>
